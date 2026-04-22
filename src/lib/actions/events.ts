@@ -2,7 +2,6 @@
 
 import { createServerClient } from "@/lib/supabase/server"
 import { createClient } from "@supabase/supabase-js"
-import { revalidatePath } from "next/cache"
 import { z } from "zod"
 
 function createAdminClient() {
@@ -29,6 +28,36 @@ const EventSchema = z.object({
   category: z.enum(["saude", "lazer", "escola", "trabalho", "outro"]).default("outro"),
   location: z.string().max(200).optional(),
 })
+
+export async function fetchEventsForFamily(
+  familyId: string,
+  start: string,
+  end: string,
+  memberFilter?: string[]
+) {
+  await getAuthUser()
+  const admin = createAdminClient()
+  let query = admin
+    .from("events")
+    .select("*, member:members(id, display_name, color)")
+    .eq("family_id", familyId)
+    .gte("starts_at", start)
+    .lte("starts_at", end)
+    .order("starts_at")
+  if (memberFilter?.length) query = query.in("member_id", memberFilter)
+  const { data } = await query
+  return data ?? []
+}
+
+export async function fetchConflicts(familyId: string, dateStr: string) {
+  await getAuthUser()
+  const admin = createAdminClient()
+  const { data } = await admin.rpc("detect_conflicts", {
+    p_family_id: familyId,
+    p_date: dateStr,
+  } as any)
+  return (data as any) ?? []
+}
 
 export async function createEvent(familyId: string, data: z.infer<typeof EventSchema>) {
   const user = await getAuthUser()
@@ -73,7 +102,6 @@ export async function createEvent(familyId: string, data: z.infer<typeof EventSc
     .single()
   if (error) throw new Error(error.message)
 
-  revalidatePath("/calendario")
   return event
 }
 
@@ -93,8 +121,6 @@ export async function updateEvent(eventId: string, data: Partial<z.infer<typeof 
 
   const { error } = await admin.from("events").update(updateData).eq("id", eventId)
   if (error) throw new Error(error.message)
-
-  revalidatePath("/calendario")
 }
 
 export async function deleteEvent(eventId: string) {
@@ -102,5 +128,4 @@ export async function deleteEvent(eventId: string) {
   const admin = createAdminClient()
   const { error } = await admin.from("events").delete().eq("id", eventId)
   if (error) throw new Error(error.message)
-  revalidatePath("/calendario")
 }

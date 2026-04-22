@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns"
+import { fetchEventsForFamily, fetchConflicts } from "@/lib/actions/events"
 
 export interface EventWithMember {
   id: string
@@ -50,40 +51,28 @@ export function useEvents(familyId: string | null, date: Date, view: CalendarVie
   const fetchEvents = useCallback(async () => {
     if (!familyId) { setIsLoading(false); return }
     setIsLoading(true)
-    const supabase = createClient()
     const { start, end } = getRange()
 
-    let query = supabase
-      .from("events")
-      .select("*, member:members(id, display_name, color)")
-      .eq("family_id", familyId)
-      .gte("starts_at", start.toISOString())
-      .lte("starts_at", end.toISOString())
-      .order("starts_at")
+    const data = await fetchEventsForFamily(
+      familyId,
+      start.toISOString(),
+      end.toISOString(),
+      memberFilter?.length ? memberFilter : undefined
+    )
+    setEvents(data as EventWithMember[])
 
-    if (memberFilter && memberFilter.length > 0) {
-      query = query.in("member_id", memberFilter)
-    }
-
-    const { data } = await query
-    setEvents((data as any) ?? [])
-
-    // Detectar conflitos do dia atual
     const todayStr = date.toISOString().split("T")[0]
-    const { data: conflictData } = await supabase.rpc("detect_conflicts", {
-      p_family_id: familyId,
-      p_date: todayStr,
-    } as any)
-    setConflicts((conflictData as any) ?? [])
+    const conflictData = await fetchConflicts(familyId, todayStr)
+    setConflicts(conflictData)
 
     setIsLoading(false)
-  }, [familyId, getRange, memberFilter])
+  }, [familyId, getRange, memberFilter, date])
 
   useEffect(() => {
     fetchEvents()
   }, [fetchEvents])
 
-  // Realtime subscription
+  // Realtime subscription — listen for changes then re-fetch via server action
   useEffect(() => {
     if (!familyId) return
     const supabase = createClient()
