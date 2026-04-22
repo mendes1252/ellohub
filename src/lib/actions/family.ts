@@ -182,7 +182,7 @@ export async function acceptInvite(token: string) {
 
   if (existingMember) {
     await admin.from("invitations").update({ status: "accepted", accepted_at: new Date().toISOString() }).eq("id", invitation.id)
-    return { familyId: invitation.family_id }
+    return { familyId: invitation.family_id, memberId: existingMember.id }
   }
 
   const { data: usedColors } = await admin.from("members").select("color").eq("family_id", invitation.family_id)
@@ -192,19 +192,18 @@ export async function acceptInvite(token: string) {
 
   const emailName = user.email?.split("@")[0] ?? "Membro"
 
-  const { error: memErr } = await admin.from("members").insert({
+  const { data: newMember, error: memErr } = await admin.from("members").insert({
     family_id: invitation.family_id,
     user_id: user.id,
     role: "member",
     display_name: emailName,
     color,
-  })
+  }).select().single()
   if (memErr) throw new Error(memErr.message)
 
   await admin.from("invitations").update({ status: "accepted", accepted_at: new Date().toISOString() }).eq("id", invitation.id)
 
-  revalidatePath("/")
-  return { familyId: invitation.family_id }
+  return { familyId: invitation.family_id, memberId: newMember.id }
 }
 
 export async function fetchInviteByToken(token: string) {

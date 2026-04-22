@@ -57,14 +57,7 @@ export default function InvitePage() {
     try {
       const result = await acceptInvite(token)
       setDisplayName(user.email?.split("@")[0] ?? "")
-      // Find the member record to update name
-      const { data: member } = await supabase
-        .from("members")
-        .select("id")
-        .eq("family_id", result.familyId)
-        .eq("user_id", user.id)
-        .maybeSingle()
-      if (member) setNewMemberId(member.id)
+      setNewMemberId(result.memberId)
       setNeedsName(true)
     } catch (e: any) {
       setError(e.message)
