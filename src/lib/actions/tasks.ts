@@ -1,8 +1,23 @@
 "use server"
 
 import { createServerClient } from "@/lib/supabase/server"
+import { createClient } from "@supabase/supabase-js"
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
+
+function createAdminClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+}
+
+async function getAuthUser() {
+  const supabase = await createServerClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error("Não autenticado")
+  return user
+}
 
 const CreateTaskSchema = z.object({
   title: z.string().min(1).max(100),
@@ -19,11 +34,11 @@ export async function createTask(familyId: string, data: {
   dueDate?: string | null
   notes?: string | null
 }) {
-  const supabase = await createServerClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error("Não autenticado")
+  const user = await getAuthUser()
+  const admin = createAdminClient()
+  const parsed = CreateTaskSchema.parse(data)
 
-  const { data: member } = await supabase
+  const { data: member } = await admin
     .from("members")
     .select("id")
     .eq("family_id", familyId)
@@ -31,9 +46,7 @@ export async function createTask(familyId: string, data: {
     .single()
   if (!member) throw new Error("Membro não encontrado")
 
-  const parsed = CreateTaskSchema.parse(data)
-
-  const { data: lastTask } = await supabase
+  const { data: lastTask } = await admin
     .from("tasks")
     .select("position")
     .eq("family_id", familyId)
@@ -44,7 +57,7 @@ export async function createTask(familyId: string, data: {
 
   const position = (lastTask?.position ?? 0) + 1
 
-  const { error } = await supabase
+  const { error } = await admin
     .from("tasks")
     .insert({
       family_id: familyId,
@@ -56,14 +69,16 @@ export async function createTask(familyId: string, data: {
       notes: parsed.notes ?? null,
       position,
     })
-  if (error) throw error
+  if (error) throw new Error(error.message)
 
   revalidatePath("/tarefas")
 }
 
 export async function toggleTask(taskId: string) {
-  const supabase = await createServerClient()
-  const { data: task } = await supabase
+  await getAuthUser()
+  const admin = createAdminClient()
+
+  const { data: task } = await admin
     .from("tasks")
     .select("status")
     .eq("id", taskId)
@@ -71,22 +86,23 @@ export async function toggleTask(taskId: string) {
   if (!task) throw new Error("Tarefa não encontrada")
 
   const newStatus = task.status === "pending" ? "done" : "pending"
-  const { error } = await supabase
+  const { error } = await admin
     .from("tasks")
     .update({
       status: newStatus,
       completed_at: newStatus === "done" ? new Date().toISOString() : null,
     })
     .eq("id", taskId)
-  if (error) throw error
+  if (error) throw new Error(error.message)
 
   revalidatePath("/tarefas")
 }
 
 export async function deleteTask(taskId: string) {
-  const supabase = await createServerClient()
-  const { error } = await supabase.from("tasks").delete().eq("id", taskId)
-  if (error) throw error
+  await getAuthUser()
+  const admin = createAdminClient()
+  const { error } = await admin.from("tasks").delete().eq("id", taskId)
+  if (error) throw new Error(error.message)
   revalidatePath("/tarefas")
 }
 
@@ -97,8 +113,9 @@ export async function updateTask(taskId: string, data: {
   dueDate?: string | null
   notes?: string | null
 }) {
-  const supabase = await createServerClient()
-  const { error } = await supabase
+  await getAuthUser()
+  const admin = createAdminClient()
+  const { error } = await admin
     .from("tasks")
     .update({
       title: data.title,
@@ -108,6 +125,6 @@ export async function updateTask(taskId: string, data: {
       notes: data.notes ?? null,
     })
     .eq("id", taskId)
-  if (error) throw error
+  if (error) throw new Error(error.message)
   revalidatePath("/tarefas")
 }

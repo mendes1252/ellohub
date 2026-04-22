@@ -12,38 +12,11 @@ function createAdminClient() {
   )
 }
 
-const CreateFamilySchema = z.object({
-  name: z.string().min(1).max(50),
-  displayName: z.string().min(1).max(30),
-})
-
-export async function createFamily(data: { name: string; displayName: string }) {
+async function getAuthUser() {
   const supabase = await createServerClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error("Não autenticado")
-
-  const parsed = CreateFamilySchema.parse(data)
-
-  const { data: family, error: famErr } = await supabase
-    .from("families")
-    .insert({ name: parsed.name, created_by: user.id })
-    .select()
-    .single()
-  if (famErr) throw famErr
-
-  const { error: memErr } = await supabase
-    .from("members")
-    .insert({
-      family_id: family.id,
-      user_id: user.id,
-      role: "admin",
-      display_name: parsed.displayName,
-      color: "#3D405B",
-    })
-  if (memErr) throw memErr
-
-  revalidatePath("/")
-  return { familyId: family.id }
+  return user
 }
 
 export async function setupFamily(data: {
@@ -52,13 +25,9 @@ export async function setupFamily(data: {
   color: string
   inviteEmail?: string
 }) {
-  // Verifica o usuário autenticado via cookie
-  const supabase = await createServerClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error("Não autenticado. Faça login novamente.")
-
-  // Verifica se já tem família (re-click protection)
+  const user = await getAuthUser()
   const admin = createAdminClient()
+
   const { data: existing } = await admin
     .from("members")
     .select("family_id")
@@ -67,7 +36,6 @@ export async function setupFamily(data: {
 
   if (existing) return { familyId: existing.family_id }
 
-  // Usa admin client para bypass de RLS no setup inicial
   const { data: family, error: famErr } = await admin
     .from("families")
     .insert({ name: data.familyName, created_by: user.id })
@@ -101,24 +69,23 @@ export async function setupFamily(data: {
 }
 
 export async function inviteMember(familyId: string, email: string) {
-  const supabase = await createServerClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error("Não autenticado")
+  const user = await getAuthUser()
+  const admin = createAdminClient()
 
-  const { data: member } = await supabase
+  const { data: member } = await admin
     .from("members")
     .select("id, role")
     .eq("family_id", familyId)
     .eq("user_id", user.id)
     .single()
-  if (member?.role !== "admin") throw new Error("Sem permissão")
+  if (!member || member.role !== "admin") throw new Error("Sem permissão de admin")
 
-  const { count } = await supabase
+  const { count } = await admin
     .from("members")
     .select("*", { count: "exact", head: true })
     .eq("family_id", familyId)
 
-  const { data: family } = await supabase
+  const { data: family } = await admin
     .from("families")
     .select("subscription_status")
     .eq("id", familyId)
@@ -127,39 +94,31 @@ export async function inviteMember(familyId: string, email: string) {
   const maxMembers = family?.subscription_status === "free" ? 2 : 6
   if ((count ?? 0) >= maxMembers) throw new Error("Limite de membros atingido. Faça upgrade para o Plano Família.")
 
-  const { data: invitation, error } = await supabase
+  const { data: invitation, error } = await admin
     .from("invitations")
     .insert({ family_id: familyId, invited_by: member.id, email })
     .select()
     .single()
-  if (error) throw error
+  if (error) throw new Error(error.message)
 
   revalidatePath("/familia")
   return { token: invitation.token }
 }
 
 export async function addChild(familyId: string, name: string) {
-  const supabase = await createServerClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error("Não autenticado")
+  const user = await getAuthUser()
+  const admin = createAdminClient()
 
-  const { data: usedColors } = await supabase
+  const { data: usedColors } = await admin
     .from("members")
     .select("color")
     .eq("family_id", familyId)
 
   const palette = ["#3D405B", "#F49AC2", "#FFC145", "#70D6E3"]
   const used = usedColors?.map((m: any) => m.color) ?? []
-  const color = palette.find(c => !used.includes(c)) ?? "#3D405B"
+  const color = palette.find(c => !used.includes(c)) ?? "#F49AC2"
 
-  const { data: adminMember } = await supabase
-    .from("members")
-    .select("id")
-    .eq("family_id", familyId)
-    .eq("user_id", user.id)
-    .single()
-
-  const { error } = await supabase
+  const { error } = await admin
     .from("members")
     .insert({
       family_id: familyId,
@@ -168,17 +127,49 @@ export async function addChild(familyId: string, name: string) {
       display_name: name,
       color,
     })
-  if (error) throw error
+  if (error) throw new Error(error.message)
 
   revalidatePath("/familia")
 }
 
 export async function updateMemberProfile(memberId: string, displayName: string) {
-  const supabase = await createServerClient()
-  const { error } = await supabase
+  await getAuthUser()
+  const admin = createAdminClient()
+  const { error } = await admin
     .from("members")
     .update({ display_name: displayName })
     .eq("id", memberId)
-  if (error) throw error
+  if (error) throw new Error(error.message)
   revalidatePath("/config")
+}
+
+export async function createFamily(data: { name: string; displayName: string }) {
+  const user = await getAuthUser()
+  const admin = createAdminClient()
+
+  const parsed = z.object({
+    name: z.string().min(1).max(50),
+    displayName: z.string().min(1).max(30),
+  }).parse(data)
+
+  const { data: family, error: famErr } = await admin
+    .from("families")
+    .insert({ name: parsed.name, created_by: user.id })
+    .select()
+    .single()
+  if (famErr) throw new Error(famErr.message)
+
+  const { error: memErr } = await admin
+    .from("members")
+    .insert({
+      family_id: family.id,
+      user_id: user.id,
+      role: "admin",
+      display_name: parsed.displayName,
+      color: "#3D405B",
+    })
+  if (memErr) throw new Error(memErr.message)
+
+  revalidatePath("/")
+  return { familyId: family.id }
 }
