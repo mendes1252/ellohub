@@ -141,6 +141,66 @@ export async function updateMemberProfile(memberId: string, displayName: string)
     .eq("id", memberId)
   if (error) throw new Error(error.message)
   revalidatePath("/config")
+  revalidatePath("/familia")
+}
+
+export async function updateMemberColor(memberId: string, color: string) {
+  await getAuthUser()
+  const admin = createAdminClient()
+  const { error } = await admin
+    .from("members")
+    .update({ color })
+    .eq("id", memberId)
+  if (error) throw new Error(error.message)
+  revalidatePath("/config")
+  revalidatePath("/familia")
+}
+
+export async function acceptInvite(token: string) {
+  const user = await getAuthUser()
+  const admin = createAdminClient()
+
+  const { data: invitation } = await admin
+    .from("invitations")
+    .select("*")
+    .eq("token", token)
+    .eq("status", "pending")
+    .single()
+
+  if (!invitation) throw new Error("Convite inválido ou expirado")
+
+  const { data: existingMember } = await admin
+    .from("members")
+    .select("id")
+    .eq("family_id", invitation.family_id)
+    .eq("user_id", user.id)
+    .maybeSingle()
+
+  if (existingMember) {
+    await admin.from("invitations").update({ status: "accepted", accepted_at: new Date().toISOString() }).eq("id", invitation.id)
+    return { familyId: invitation.family_id }
+  }
+
+  const { data: usedColors } = await admin.from("members").select("color").eq("family_id", invitation.family_id)
+  const palette = ["#3D405B", "#F49AC2", "#FFC145", "#70D6E3"]
+  const used = usedColors?.map((m: any) => m.color) ?? []
+  const color = palette.find(c => !used.includes(c)) ?? "#70D6E3"
+
+  const emailName = user.email?.split("@")[0] ?? "Membro"
+
+  const { error: memErr } = await admin.from("members").insert({
+    family_id: invitation.family_id,
+    user_id: user.id,
+    role: "member",
+    display_name: emailName,
+    color,
+  })
+  if (memErr) throw new Error(memErr.message)
+
+  await admin.from("invitations").update({ status: "accepted", accepted_at: new Date().toISOString() }).eq("id", invitation.id)
+
+  revalidatePath("/")
+  return { familyId: invitation.family_id }
 }
 
 export async function createFamily(data: { name: string; displayName: string }) {
