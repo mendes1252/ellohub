@@ -95,15 +95,18 @@ export async function inviteMember(familyId: string, email: string) {
   const maxMembers = family?.subscription_status === "free" ? 2 : 6
   if ((count ?? 0) >= maxMembers) throw new Error("Limite de membros atingido. Faça upgrade para o Plano Família.")
 
+  // Gera token explicitamente para não depender de DEFAULT do banco
+  const token = crypto.randomUUID()
+
   const { data: invitation, error } = await admin
     .from("invitations")
-    .insert({ family_id: familyId, invited_by: member.id, email })
+    .insert({ family_id: familyId, invited_by: member.id, email, token })
     .select()
     .single()
   if (error) throw new Error(error.message)
 
-  revalidatePath("/familia")
-  return { token: invitation.token }
+  // Sem revalidatePath para não resetar o estado do InviteForm
+  return { token: invitation.token ?? token }
 }
 
 export async function addChild(familyId: string, name: string) {
