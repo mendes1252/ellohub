@@ -25,7 +25,7 @@ export default function LoginPage() {
 
     setLoading(false)
     if (error) {
-      setError("Não foi possível enviar o link. Tente novamente.")
+      setError(error.message)
     } else {
       setSent(true)
     }
