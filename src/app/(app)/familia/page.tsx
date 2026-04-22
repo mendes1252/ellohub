@@ -126,11 +126,24 @@ export default function FamiliaPage() {
       )}
 
       {/* Info sobre limite do plano grátis */}
-      {family?.subscription_status === "free" && members.length >= 2 && (
-        <div className="bg-ello-amarelo/10 border border-ello-amarelo/30 rounded-ello p-4">
-          <p className="text-sm font-medium text-ello-indigo">Plano Grátis · 2 membros</p>
-          <p className="text-xs text-ello-indigo/60 mt-1">
-            Faça upgrade para o Plano Família e adicione até 6 membros com IA inclusa.
+      {family?.subscription_status === "free" && members.filter(m => m.user_id).length >= 2 && (
+        <div className="bg-ello-amarelo/10 border border-ello-amarelo/30 rounded-ello p-4 space-y-3">
+          <div>
+            <p className="text-sm font-medium text-ello-indigo">Plano Grátis · limite de 2 adultos</p>
+            <p className="text-xs text-ello-indigo/60 mt-1">
+              Faça upgrade para o Plano Família e adicione até 6 membros com IA inclusa.
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <a
+              href="mailto:ello@app.com?subject=Quero%20o%20Plano%20Família"
+              className="flex-1 text-center text-xs font-medium bg-ello-amarelo text-ello-indigo py-2 px-3 rounded-ello-sm hover:opacity-90 transition-opacity"
+            >
+              💛 Quero o Plano Família
+            </a>
+          </div>
+          <p className="text-[10px] text-ello-indigo/40">
+            Filhos cadastrados não contam no limite de adultos.
           </p>
         </div>
       )}

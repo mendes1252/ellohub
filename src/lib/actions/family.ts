@@ -84,6 +84,7 @@ export async function inviteMember(familyId: string, email: string) {
     .from("members")
     .select("*", { count: "exact", head: true })
     .eq("family_id", familyId)
+    .not("user_id", "is", null)
 
   const { data: family } = await admin
     .from("families")
