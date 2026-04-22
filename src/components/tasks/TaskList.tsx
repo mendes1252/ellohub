@@ -10,9 +10,10 @@ interface TaskListProps {
   tasks: TaskWithMember[]
   onAddTask: (listName: string) => void
   onEditTask: (task: TaskWithMember) => void
+  onRefetch: () => void
 }
 
-export function TaskList({ listName, tasks, onAddTask, onEditTask }: TaskListProps) {
+export function TaskList({ listName, tasks, onAddTask, onEditTask, onRefetch }: TaskListProps) {
   const [collapsed, setCollapsed] = useState(false)
   const pending = tasks.filter(t => t.status === "pending")
   const done = tasks.filter(t => t.status === "done")
@@ -45,12 +46,12 @@ export function TaskList({ listName, tasks, onAddTask, onEditTask }: TaskListPro
       {!collapsed && (
         <div className="divide-y divide-ello-indigo/5">
           {pending.map(t => (
-            <TaskItem key={t.id} task={t} onEdit={onEditTask} />
+            <TaskItem key={t.id} task={t} onEdit={onEditTask} onRefetch={onRefetch} />
           ))}
           {done.length > 0 && (
             <div className="bg-ello-offwhite/60 divide-y divide-ello-indigo/5">
               {done.map(t => (
-                <TaskItem key={t.id} task={t} onEdit={onEditTask} />
+                <TaskItem key={t.id} task={t} onEdit={onEditTask} onRefetch={onRefetch} />
               ))}
             </div>
           )}

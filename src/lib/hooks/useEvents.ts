@@ -51,21 +51,29 @@ export function useEvents(familyId: string | null, date: Date, view: CalendarVie
   const fetchEvents = useCallback(async () => {
     if (!familyId) { setIsLoading(false); return }
     setIsLoading(true)
-    const { start, end } = getRange()
+    try {
+      const { start, end } = getRange()
+      const data = await fetchEventsForFamily(
+        familyId,
+        start.toISOString(),
+        end.toISOString(),
+        memberFilter?.length ? memberFilter : undefined
+      )
+      setEvents(data as EventWithMember[])
 
-    const data = await fetchEventsForFamily(
-      familyId,
-      start.toISOString(),
-      end.toISOString(),
-      memberFilter?.length ? memberFilter : undefined
-    )
-    setEvents(data as EventWithMember[])
-
-    const todayStr = date.toISOString().split("T")[0]
-    const conflictData = await fetchConflicts(familyId, todayStr)
-    setConflicts(conflictData)
-
-    setIsLoading(false)
+      try {
+        const todayStr = date.toISOString().split("T")[0]
+        const conflictData = await fetchConflicts(familyId, todayStr)
+        setConflicts(conflictData)
+      } catch {
+        // conflicts non-fatal
+      }
+    } catch (err) {
+      console.error("Erro ao buscar eventos:", err)
+      setEvents([])
+    } finally {
+      setIsLoading(false)
+    }
   }, [familyId, getRange, memberFilter, date])
 
   useEffect(() => {

@@ -64,6 +64,7 @@ export default function TarefasPage() {
           tasks={lists[name]}
           onAddTask={handleAddTask}
           onEditTask={handleEditTask}
+          onRefetch={refetch}
         />
       ))}
 

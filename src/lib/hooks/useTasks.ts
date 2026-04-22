@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { createClient as createBrowserClient } from "@/lib/supabase/client"
+import { fetchTasksForFamily } from "@/lib/actions/tasks"
 import type { Member } from "@/lib/hooks/useFamily"
 
 export interface TaskWithMember {
@@ -23,23 +24,24 @@ export interface TaskWithMember {
 export function useTasks(familyId: string | undefined) {
   const [tasks, setTasks] = useState<TaskWithMember[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const supabase = createBrowserClient()
 
   const fetchTasks = useCallback(async () => {
     if (!familyId) { setIsLoading(false); return }
-    const { data } = await supabase
-      .from("tasks")
-      .select("*, member:members!tasks_assigned_to_fkey(*)")
-      .eq("family_id", familyId)
-      .order("list_name")
-      .order("position")
-    setTasks((data as any) ?? [])
-    setIsLoading(false)
+    try {
+      const data = await fetchTasksForFamily(familyId)
+      setTasks(data as TaskWithMember[])
+    } catch (err) {
+      console.error("Erro ao buscar tarefas:", err)
+      setTasks([])
+    } finally {
+      setIsLoading(false)
+    }
   }, [familyId])
 
   useEffect(() => {
     fetchTasks()
     if (!familyId) return
+    const supabase = createBrowserClient()
     const channel = supabase
       .channel(`tasks:${familyId}`)
       .on("postgres_changes", {
@@ -47,7 +49,7 @@ export function useTasks(familyId: string | undefined) {
         schema: "public",
         table: "tasks",
         filter: `family_id=eq.${familyId}`,
-      }, fetchTasks)
+      }, () => fetchTasks())
       .subscribe()
     return () => { supabase.removeChannel(channel) }
   }, [familyId, fetchTasks])

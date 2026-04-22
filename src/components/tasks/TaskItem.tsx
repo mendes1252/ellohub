@@ -11,9 +11,10 @@ import { ptBR } from "date-fns/locale"
 interface TaskItemProps {
   task: TaskWithMember
   onEdit: (task: TaskWithMember) => void
+  onRefetch: () => void
 }
 
-export function TaskItem({ task, onEdit }: TaskItemProps) {
+export function TaskItem({ task, onEdit, onRefetch }: TaskItemProps) {
   const [toggling, setToggling] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const isDone = task.status === "done"
@@ -21,13 +22,25 @@ export function TaskItem({ task, onEdit }: TaskItemProps) {
   async function handleToggle(e: React.MouseEvent) {
     e.stopPropagation()
     setToggling(true)
-    try { await toggleTask(task.id) } finally { setToggling(false) }
+    try {
+      await toggleTask(task.id)
+      onRefetch()
+    } catch (err: any) {
+      console.error("Erro ao alternar tarefa:", err)
+    } finally {
+      setToggling(false)
+    }
   }
 
   async function handleDelete(e: React.MouseEvent) {
     e.stopPropagation()
     setDeleting(true)
-    try { await deleteTask(task.id) } finally { setDeleting(false) }
+    try {
+      await deleteTask(task.id)
+      onRefetch()
+    } finally {
+      setDeleting(false)
+    }
   }
 
   return (

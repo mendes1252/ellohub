@@ -2,7 +2,6 @@
 
 import { createServerClient } from "@/lib/supabase/server"
 import { createClient } from "@supabase/supabase-js"
-import { revalidatePath } from "next/cache"
 import { z } from "zod"
 
 function createAdminClient() {
@@ -26,6 +25,18 @@ const CreateTaskSchema = z.object({
   dueDate: z.string().nullable().optional(),
   notes: z.string().max(500).nullable().optional(),
 })
+
+export async function fetchTasksForFamily(familyId: string) {
+  await getAuthUser()
+  const admin = createAdminClient()
+  const { data } = await admin
+    .from("tasks")
+    .select("*, member:members!tasks_assigned_to_fkey(*)")
+    .eq("family_id", familyId)
+    .order("list_name")
+    .order("position")
+  return data ?? []
+}
 
 export async function createTask(familyId: string, data: {
   title: string
@@ -71,7 +82,6 @@ export async function createTask(familyId: string, data: {
     })
   if (error) throw new Error(error.message)
 
-  revalidatePath("/tarefas")
 }
 
 export async function toggleTask(taskId: string) {
@@ -95,7 +105,6 @@ export async function toggleTask(taskId: string) {
     .eq("id", taskId)
   if (error) throw new Error(error.message)
 
-  revalidatePath("/tarefas")
 }
 
 export async function deleteTask(taskId: string) {
@@ -103,7 +112,6 @@ export async function deleteTask(taskId: string) {
   const admin = createAdminClient()
   const { error } = await admin.from("tasks").delete().eq("id", taskId)
   if (error) throw new Error(error.message)
-  revalidatePath("/tarefas")
 }
 
 export async function updateTask(taskId: string, data: {
@@ -126,5 +134,4 @@ export async function updateTask(taskId: string, data: {
     })
     .eq("id", taskId)
   if (error) throw new Error(error.message)
-  revalidatePath("/tarefas")
 }

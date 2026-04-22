@@ -30,7 +30,6 @@ export function InviteForm({ familyId, onSuccess }: InviteFormProps) {
       setInviteToken(result.token)
       setSuccess(true)
       setTimeout(() => setSuccess(false), 600)
-      onSuccess()
     } catch (err: any) {
       setError(err.message)
     } finally {
