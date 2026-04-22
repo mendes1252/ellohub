@@ -2,17 +2,16 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { MEMBER_COLORS } from "@/lib/utils/colors"
+import { setupFamily } from "@/lib/actions/family"
 import { motion, AnimatePresence } from "framer-motion"
 
 const STEPS = 4
 
 export default function OnboardingPage() {
   const router = useRouter()
-  const supabase = createClient()
 
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
@@ -24,56 +23,13 @@ export default function OnboardingPage() {
   async function handleFinish() {
     setLoading(true)
     setError("")
-
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error("Não autenticado")
-
-      // Check if user already has a family (re-click protection)
-      const { data: existingMember } = await supabase
-        .from("members")
-        .select("family_id")
-        .eq("user_id", user.id)
-        .maybeSingle()
-
-      if (existingMember) {
-        router.push("/calendario")
-        return
-      }
-
-      const { data: family, error: famErr } = await supabase
-        .from("families")
-        .insert({ name: familyName, created_by: user.id })
-        .select()
-        .single()
-      if (famErr) throw new Error(`Família: ${famErr.message}`)
-
-      const { error: memErr } = await supabase
-        .from("members")
-        .insert({
-          family_id: family.id,
-          user_id: user.id,
-          role: "admin",
-          display_name: displayName,
-          color: MEMBER_COLORS[0].hex,
-        })
-      if (memErr) throw new Error(`Membro: ${memErr.message}`)
-
-      if (inviteEmail) {
-        const { data: member } = await supabase
-          .from("members")
-          .select("id")
-          .eq("family_id", family.id)
-          .eq("user_id", user.id)
-          .single()
-
-        await supabase.from("invitations").insert({
-          family_id: family.id,
-          invited_by: member!.id,
-          email: inviteEmail,
-        })
-      }
-
+      await setupFamily({
+        familyName,
+        displayName,
+        color: MEMBER_COLORS[0].hex,
+        inviteEmail: inviteEmail || undefined,
+      })
       router.push("/calendario")
     } catch (e: any) {
       console.error("Onboarding error:", e)
