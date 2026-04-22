@@ -39,7 +39,7 @@ export async function fetchEventsForFamily(
   const admin = createAdminClient()
   let query = admin
     .from("events")
-    .select("*, member:members(id, display_name, color)")
+    .select("*, member:members!events_member_id_fkey(id, display_name, color)")
     .eq("family_id", familyId)
     .gte("starts_at", start)
     .lte("starts_at", end)

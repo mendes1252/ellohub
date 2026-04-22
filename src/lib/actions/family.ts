@@ -207,6 +207,16 @@ export async function acceptInvite(token: string) {
   return { familyId: invitation.family_id }
 }
 
+export async function fetchInviteByToken(token: string) {
+  const admin = createAdminClient()
+  const { data } = await admin
+    .from("invitations")
+    .select("family_id, email, status, families(name)")
+    .eq("token", token)
+    .single()
+  return data as { family_id: string; email: string; status: string; families: { name: string } | null } | null
+}
+
 export async function createFamily(data: { name: string; displayName: string }) {
   const user = await getAuthUser()
   const admin = createAdminClient()

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
-import { acceptInvite } from "@/lib/actions/family"
+import { acceptInvite, fetchInviteByToken, updateMemberProfile } from "@/lib/actions/family"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { LoadingPulse } from "@/components/shared/LoadingPulse"
@@ -25,10 +25,10 @@ export default function InvitePage() {
   const [error, setError] = useState("")
   const [isLoggedIn, setIsLoggedIn] = useState(false)
 
-  // Step for new users: enter name after accepting
   const [needsName, setNeedsName] = useState(false)
   const [displayName, setDisplayName] = useState("")
   const [savingName, setSavingName] = useState(false)
+  const [newMemberId, setNewMemberId] = useState<string | null>(null)
 
   useEffect(() => {
     async function load() {
@@ -36,13 +36,8 @@ export default function InvitePage() {
       const { data: { user } } = await supabase.auth.getUser()
       setIsLoggedIn(!!user)
 
-      const { data } = await supabase
-        .from("invitations")
-        .select("family_id, email, status, families(name)")
-        .eq("token", token)
-        .single()
-
-      setInvite(data as any)
+      const data = await fetchInviteByToken(token)
+      setInvite(data)
       setLoading(false)
     }
     load()
@@ -60,9 +55,17 @@ export default function InvitePage() {
     }
 
     try {
-      await acceptInvite(token)
-      setNeedsName(true)
+      const result = await acceptInvite(token)
       setDisplayName(user.email?.split("@")[0] ?? "")
+      // Find the member record to update name
+      const { data: member } = await supabase
+        .from("members")
+        .select("id")
+        .eq("family_id", result.familyId)
+        .eq("user_id", user.id)
+        .maybeSingle()
+      if (member) setNewMemberId(member.id)
+      setNeedsName(true)
     } catch (e: any) {
       setError(e.message)
       setAccepting(false)
@@ -72,23 +75,14 @@ export default function InvitePage() {
   async function handleSaveName() {
     if (!displayName.trim()) return
     setSavingName(true)
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user || !invite) { router.push("/calendario"); return }
-
-    // Find the member record just created and update the name
-    const { data: member } = await supabase
-      .from("members")
-      .select("id")
-      .eq("family_id", invite.family_id)
-      .eq("user_id", user.id)
-      .single()
-
-    if (member) {
-      await supabase.from("members").update({ display_name: displayName.trim() }).eq("id", member.id)
+    try {
+      if (newMemberId) {
+        await updateMemberProfile(newMemberId, displayName.trim())
+      }
+      router.push("/calendario")
+    } catch {
+      router.push("/calendario")
     }
-
-    router.push("/calendario")
   }
 
   if (loading) {
@@ -135,7 +129,7 @@ export default function InvitePage() {
     )
   }
 
-  const familyName = (invite as any).families?.name ?? "família"
+  const familyName = invite.families?.name ?? "família"
 
   return (
     <div className="min-h-screen bg-ello-offwhite flex flex-col items-center justify-center px-5">
