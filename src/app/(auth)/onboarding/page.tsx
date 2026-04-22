@@ -29,12 +29,24 @@ export default function OnboardingPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error("Não autenticado")
 
+      // Check if user already has a family (re-click protection)
+      const { data: existingMember } = await supabase
+        .from("members")
+        .select("family_id")
+        .eq("user_id", user.id)
+        .maybeSingle()
+
+      if (existingMember) {
+        router.push("/calendario")
+        return
+      }
+
       const { data: family, error: famErr } = await supabase
         .from("families")
         .insert({ name: familyName, created_by: user.id })
         .select()
         .single()
-      if (famErr) throw famErr
+      if (famErr) throw new Error(`Família: ${famErr.message}`)
 
       const { error: memErr } = await supabase
         .from("members")
@@ -45,7 +57,7 @@ export default function OnboardingPage() {
           display_name: displayName,
           color: MEMBER_COLORS[0].hex,
         })
-      if (memErr) throw memErr
+      if (memErr) throw new Error(`Membro: ${memErr.message}`)
 
       if (inviteEmail) {
         const { data: member } = await supabase
@@ -63,8 +75,9 @@ export default function OnboardingPage() {
       }
 
       router.push("/calendario")
-    } catch (e) {
-      setError("Algo deu errado. Tente novamente.")
+    } catch (e: any) {
+      console.error("Onboarding error:", e)
+      setError(e.message ?? "Algo deu errado. Tente novamente.")
       setLoading(false)
     }
   }
@@ -159,6 +172,11 @@ export default function OnboardingPage() {
               <p className="text-sm text-ello-indigo/60 mb-10">
                 Bem-vindo(a) ao Ello, {displayName}! A família <strong>{familyName}</strong> está criada.
               </p>
+              {error && (
+                <p className="text-sm text-red-500 mb-4 bg-red-50 border border-red-200 rounded-ello-sm p-3">
+                  {error}
+                </p>
+              )}
               <Button className="w-full" onClick={handleFinish} loading={loading}>
                 Criar primeiro evento
               </Button>
