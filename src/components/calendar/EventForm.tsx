@@ -100,7 +100,8 @@ export function EventForm({ open, onClose, familyId, members, currentMemberId, e
       onSaved()
       onClose()
     } catch (err: any) {
-      setError(err.message)
+      console.error("Erro ao salvar evento:", err)
+      setError(err?.message ?? "Erro ao salvar evento")
     } finally {
       setLoading(false)
     }

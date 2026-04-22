@@ -51,7 +51,7 @@ export async function createEvent(familyId: string, data: z.infer<typeof EventSc
       all_day: parsed.allDay,
       category: parsed.category,
       location: parsed.location,
-      synced_from: "manual",
+      synced_from: null,
     })
     .select()
     .single()
