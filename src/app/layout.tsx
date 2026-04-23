@@ -10,10 +10,6 @@ export const metadata: Metadata = {
     statusBarStyle: "default",
     title: "Ello",
   },
-  icons: {
-    icon: "/icons/icon-192.png",
-    apple: "/icons/icon-192.png",
-  },
 }
 
 export const viewport: Viewport = {
@@ -26,7 +22,14 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="pt-BR">
-      <body>{children}</body>
+      <body>
+        {children}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `if("serviceWorker" in navigator){navigator.serviceWorker.register("/sw.js").catch(()=>{})}`,
+          }}
+        />
+      </body>
     </html>
   )
 }

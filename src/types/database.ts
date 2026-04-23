@@ -16,8 +16,8 @@ export interface Database {
           name: string
           created_by: string
           subscription_status: SubscriptionStatus
-          stripe_customer_id: string | null
-          stripe_subscription_id: string | null
+          asaas_customer_id: string | null
+          asaas_subscription_id: string | null
           trial_ends_at: string | null
           created_at: string
           updated_at: string
@@ -27,8 +27,8 @@ export interface Database {
           name: string
           created_by: string
           subscription_status?: SubscriptionStatus
-          stripe_customer_id?: string | null
-          stripe_subscription_id?: string | null
+          asaas_customer_id?: string | null
+          asaas_subscription_id?: string | null
           trial_ends_at?: string | null
         }
         Update: Partial<Database["public"]["Tables"]["families"]["Insert"]>
@@ -194,6 +194,29 @@ export interface Database {
           auth_key: string
         }
         Update: Partial<Database["public"]["Tables"]["push_subscriptions"]["Insert"]>
+      }
+      google_calendar_tokens: {
+        Row: {
+          id: string
+          member_id: string
+          access_token: string
+          refresh_token: string | null
+          expires_at: string | null
+          calendar_id: string
+          synced_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          member_id: string
+          access_token: string
+          refresh_token?: string | null
+          expires_at?: string | null
+          calendar_id?: string
+          synced_at?: string | null
+        }
+        Update: Partial<Database["public"]["Tables"]["google_calendar_tokens"]["Insert"]>
       }
     }
     Functions: {
